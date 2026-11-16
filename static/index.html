@@ -1,0 +1,1220 @@
+<!DOCTYPE html>
+<html lang="ja">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>LVYUAN HSI3000U Solar Inverter Pro Monitor</title>
+  <!-- Google Fonts: Inter & Outfit & JetBrains Mono -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link
+    href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Outfit:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600;700&display=swap"
+    rel="stylesheet">
+  <!-- Chart.js CDN -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+  <link rel="stylesheet" href="/static/style.css?v=2.8">
+</head>
+
+<body>
+  <div class="app-container">
+    <!-- Top Header & Connection Bar -->
+    <header class="top-nav">
+      <div class="nav-brand">
+        <div class="brand-icon">⚡</div>
+        <div class="brand-text">
+          <h1>LVYUAN HSI3000U <span class="badge-pro">PRO MONITOR</span></h1>
+          <p class="brand-sub">SRNE Hybrid Inverter Telemetry & Diagnostic System</p>
+        </div>
+      </div>
+
+      <div class="nav-controls">
+        <!-- Live Status Badge -->
+        <div class="status-indicator" id="statusBadge">
+          <span class="status-pulse"></span>
+          <span class="status-text" id="statusText" data-i18n="header.status_waiting">接続待機中...</span>
+        </div>
+
+        <!-- Live Telemetry Heartbeat -->
+        <div class="telemetry-heartbeat" id="telemetryHeartbeat" data-i18n-title="header.heartbeat_title"
+          title="1秒ごとにインバータから最新データを取得しています">
+          <span class="heartbeat-dot active" id="heartbeatDot"></span>
+          <span class="heartbeat-text">LIVE <strong id="lastUpdatedSec">--:--:--</strong></span>
+        </div>
+
+        <!-- Port Select & Connection Actions -->
+        <div class="connection-group">
+          <label for="portSelect" class="sr-only">COMポート</label>
+          <select id="portSelect" class="custom-select">
+            <option value="COM5">COM5 (Default)</option>
+          </select>
+          <button id="btnRefreshPorts" class="icon-btn" data-i18n-title="header.refresh_ports"
+            title="ポート再検出">🔄</button>
+          <button id="btnConnect" class="btn btn-primary" data-i18n="header.btn_connect">接続</button>
+          <button id="btnSimulate" class="btn btn-secondary" data-i18n="header.btn_demo"
+            title="実機未接続時に動作テスト">デモモード</button>
+        </div>
+
+        <!-- Quick Actions -->
+        <div class="quick-actions">
+          <select id="langSelect" class="custom-select" style="min-width: 82px;" aria-label="Language">
+            <option value="en">🌐 EN</option>
+            <option value="ja">🌐 JA</option>
+          </select>
+          <button id="btnExportCsv" class="btn btn-outline" data-i18n="header.btn_csv" title="本日のログCSVをダウンロード">📥
+            CSV出力</button>
+          <button id="btnLanHelp" class="btn btn-icon-only" data-i18n-title="header.btn_lan"
+            title="スマホ・タブレット接続方法">📱</button>
+        </div>
+      </div>
+    </header>
+
+    <!-- Navigation Tabs -->
+    <nav class="sub-nav" id="mainSubNav">
+      <!-- 1. メイン概要 -->
+      <button class="nav-tab active" data-tab="tab-overview" data-i18n="nav.overview">⚡ 概要 & フロー</button>
+
+      <!-- 2. 日別履歴 -->
+      <button class="nav-tab" data-tab="tab-history" data-i18n="nav.history">📅 日別履歴</button>
+
+      <!-- 3. 障害診断 -->
+      <button class="nav-tab" data-tab="tab-faults">
+        <span data-i18n="nav.faults">🚨 障害診断</span> <span class="tab-badge-alert hidden" id="navFaultBadge">0</span>
+      </button>
+
+      <!-- 4. 機器別詳細 (コンボボックス) -->
+      <div class="nav-select-wrapper">
+        <select class="nav-select" id="selectMetrics" aria-label="機器別詳細">
+          <option value="" disabled selected hidden data-i18n="nav.metrics">📊 機器別詳細 ▼</option>
+          <option value="tab-battery" data-i18n="nav.battery">🔋 バッテリー詳細</option>
+          <option value="tab-solar" data-i18n="nav.solar">☀️ 太陽光 (PV)</option>
+          <option value="tab-inverter" data-i18n="nav.inverter">🏠 インバータ & 交流負荷</option>
+          <option value="tab-grid" data-i18n="nav.grid">🔌 商用電源 (Grid)</option>
+          <option value="tab-hardware" data-i18n="nav.hardware">🌡️ 温度 & 内部ハードウェア</option>
+        </select>
+      </div>
+
+      <!-- 5. 設定パラメータ -->
+      <button class="nav-tab" data-tab="tab-settings" data-i18n="nav.settings">⚙️ 設定パラメータ</button>
+
+      <!-- 6. 診断ツール (コンボボックス) -->
+      <div class="nav-select-wrapper">
+        <select class="nav-select" id="selectTools" aria-label="診断ツール">
+          <option value="" disabled selected hidden data-i18n="nav.tools">🛠️ ツール ▼</option>
+          <option value="tab-scanner" data-i18n="nav.scanner">🔍 レジスタスキャナ</option>
+          <option value="tab-terminal" data-i18n="nav.terminal">📡 ライブ通信コンソール</option>
+        </select>
+      </div>
+    </nav>
+
+    <!-- Main Content Area -->
+    <main class="main-content">
+
+      <!-- TAB 1: OVERVIEW & ENERGY FLOW -->
+      <section id="tab-overview" class="tab-pane active">
+        <!-- Active Fault Alert Banner (if any) -->
+        <div id="topFaultBanner" class="fault-banner hidden">
+          <div class="fault-banner-icon">🚨</div>
+          <div class="fault-banner-content">
+            <strong id="topFaultTitle" data-i18n="fault_banner.title">インバータ異常が検出されました</strong>
+            <p id="topFaultDesc" data-i18n="fault_banner.desc">詳細な原因と対処法は「🚨 障害診断」タブをご確認ください。</p>
+          </div>
+          <button class="btn btn-alert-view" id="btnGoToFaults" data-i18n="fault_banner.btn">詳細を確認</button>
+        </div>
+
+        <!-- Summary Stat Cards -->
+        <div class="summary-cards-grid">
+          <!-- Solar Generation Card -->
+          <div class="stat-card solar-glow clickable-card" data-goto="tab-solar" title="クリックで太陽光(PV)の詳細画面へ">
+            <div class="stat-card-header">
+              <span class="stat-title" data-i18n="card.pv_title">☀️ 太陽光発電 (PV)</span>
+              <span class="stat-tag" id="pvStatusTag" data-i18n="card.pv_active">発電中</span>
+            </div>
+            <div class="stat-hero">
+              <span class="stat-value" id="cardPvPower">0</span>
+              <span class="stat-unit">W</span>
+            </div>
+            <div class="stat-sub-info">
+              <span><span data-i18n="card.voltage_lbl">電圧:</span> <strong id="cardPvVoltage">0.0</strong> V</span>
+              <span><span data-i18n="card.current_lbl">電流:</span> <strong id="cardPvCurrent">0.0</strong> A</span>
+              <span><span data-i18n="card.daily_total_lbl">本日積算:</span> <strong id="cardPvDailyKwh">0.00</strong> kWh</span>
+            </div>
+          </div>
+
+          <!-- AC Grid Input Card -->
+          <div class="stat-card grid-glow clickable-card" data-goto="tab-grid" title="クリックで商用電源(Grid)の詳細画面へ">
+            <div class="stat-card-header">
+              <span class="stat-title" data-i18n="card.grid_title">🔌 商用AC入力 (系統)</span>
+              <span class="stat-tag" id="cardGridStatusTag" data-i18n="card.grid_connected">商用接続中</span>
+            </div>
+            <div class="stat-hero">
+              <span class="stat-value" id="cardGridPower">0</span>
+              <span class="stat-unit">W</span>
+            </div>
+            <div class="stat-sub-info">
+              <span><span data-i18n="card.ac_voltage_lbl">AC電圧:</span> <strong id="cardGridVoltage">0.0</strong> V</span>
+              <span><span data-i18n="card.ac_current_lbl">AC電流:</span> <strong id="cardGridCurrent">0.00</strong> A</span>
+              <span><span data-i18n="card.freq_lbl">周波数:</span> <strong id="cardGridHz">50.0</strong> Hz</span>
+            </div>
+          </div>
+
+          <!-- Battery Card -->
+          <div class="stat-card battery-glow clickable-card" data-goto="tab-battery" title="クリックでバッテリー蓄電池の詳細画面へ">
+            <div class="stat-card-header">
+              <span class="stat-title" data-i18n="card.batt_title">🔋 バッテリー (蓄電池)</span>
+              <span class="stat-tag" id="cardBattModeTag">スタンバイ</span>
+            </div>
+            <div class="stat-hero">
+              <span class="stat-value" id="cardBattSoc">0</span>
+              <span class="stat-unit">%</span>
+              <span class="stat-tag" id="cardBattEstTag" data-i18n="card.batt_ekf"
+                style="font-size:0.72rem; margin-left: 8px; padding: 2px 8px; vertical-align: middle; background: rgba(16,185,129,0.15); color: #10b981; border: 1px solid rgba(16,185,129,0.3); border-radius: 10px;">EKF適応推定</span>
+            </div>
+            <div class="stat-sub-info">
+              <span><span data-i18n="card.batt_rem_lbl">残容量:</span> <strong id="cardBattRemainingAh" style="color: #10b981;">0.0</strong> Ah / <strong
+                  id="cardBattCapacityAh">100</strong> Ah (<strong id="cardBattRemainingKwh">0.00</strong> kWh)</span>
+              <span><span data-i18n="card.voltage_lbl">電圧:</span> <strong id="cardBattVoltage">0.0</strong> V | <span data-i18n="card.batt_chg_dis_lbl">充放電:</span> <strong id="cardBattCurrent">0.0</strong> A
+                (<span id="cardBattPower">0</span> W)</span>
+              <span><span data-i18n="card.batt_raw_soc_lbl">本体換算値:</span> <span id="cardBattRawSoc">--</span>% | <span data-i18n="card.batt_today_chg_lbl">本日充電:</span> <strong id="cardBattDailyChgKwh">0.00</strong>
+                kWh</span>
+            </div>
+            <div class="progress-bar-container">
+              <div class="progress-bar battery-fill" id="cardBattSocBar" style="width: 0%"></div>
+            </div>
+          </div>
+
+          <!-- AC Load Card -->
+          <div class="stat-card load-glow clickable-card" data-goto="tab-inverter" title="クリックでインバータ & 家電負荷の詳細画面へ">
+            <div class="stat-card-header">
+              <span class="stat-title" data-i18n="card.load_title">🏠 AC消費負荷 (家電)</span>
+              <span class="stat-tag" id="cardLoadPercentTag">0% 負荷</span>
+            </div>
+            <div class="stat-hero">
+              <span class="stat-value" id="cardLoadPower">0</span>
+              <span class="stat-unit">W</span>
+            </div>
+            <div class="stat-sub-info">
+              <span><span data-i18n="card.ac_voltage_lbl">AC電圧:</span> <strong id="cardInvVoltage">100.0</strong> V</span>
+              <span><span data-i18n="card.apparent_pwr_lbl">皮相電力:</span> <strong id="cardLoadVa">0</strong> VA</span>
+              <span><span data-i18n="card.load_pct_lbl">負荷率:</span> <strong id="cardLoadPercent">0</strong> %</span>
+            </div>
+          </div>
+
+          <!-- Inverter & Grid State Card -->
+          <div class="stat-card inverter-glow clickable-card" data-goto="tab-hardware" title="クリックで内部温度 & ハードウェア詳細画面へ">
+            <div class="stat-card-header">
+              <span class="stat-title" data-i18n="card.inv_mode_title">⚡ インバータ動作モード</span>
+              <span class="stat-tag" id="cardMachineStateCodeTag">State 4</span>
+            </div>
+            <div class="stat-hero-text" id="cardMachineState">
+              待機中
+            </div>
+            <div class="stat-sub-info">
+              <span><span data-i18n="card.grid_input_lbl">商用入力:</span> <strong id="cardGridStatus">未検出</strong></span>
+              <span><span data-i18n="card.dc_bus_lbl">DC高圧バス:</span> <strong id="cardBusVoltage">0.0</strong> V</span>
+              <span><span data-i18n="card.freq_lbl">周波数:</span> <strong id="cardInverterHz">50.0</strong> Hz</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Dynamic Animated Energy Flow Diagram -->
+        <div class="panel flow-panel">
+          <div class="panel-header">
+            <div class="flow-header-title-wrap">
+              <h3 data-i18n="flow.title">⚡ リアルタイム電力フロー (Interactive Energy Flow)</h3>
+              <span class="panel-badge" data-i18n="flow.badge_auto">自動検出・動的アニメーション</span>
+            </div>
+            <div class="flow-header-banner">
+              <div class="flow-kwh-summary">
+                <span class="flow-kwh-chip chip-solar">☀️ <span data-i18n="flow.today_pv">本日発電:</span> <strong id="flowHeaderPvKwh">0.000</strong> kWh</span>
+                <span class="flow-kwh-chip chip-batt-chg">⚡ <span data-i18n="flow.today_chg">本日充電:</span> <strong id="flowHeaderBattChgKwh">0.000</strong>
+                  kWh</span>
+              </div>
+              <span class="mode-pill mode-pill-bypass" id="flowModePill">
+                <span class="mode-dot" id="flowModeDot"></span>
+                <span id="flowModeText">🔄 商用バイパス給電中 (商用直結・インバータ待機)</span>
+              </span>
+            </div>
+          </div>
+          <div class="energy-flow-container">
+            <svg id="energyFlowSvg" viewBox="0 0 960 400" preserveAspectRatio="xMidYMid meet">
+              <defs>
+                <linearGradient id="solarGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+                  <stop offset="0%" stop-color="#f59e0b" />
+                  <stop offset="100%" stop-color="#d97706" />
+                </linearGradient>
+                <linearGradient id="invGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+                  <stop offset="0%" stop-color="#06b6d4" />
+                  <stop offset="100%" stop-color="#0284c7" />
+                </linearGradient>
+                <linearGradient id="battGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+                  <stop offset="0%" stop-color="#10b981" />
+                  <stop offset="100%" stop-color="#059669" />
+                </linearGradient>
+                <linearGradient id="loadGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+                  <stop offset="0%" stop-color="#ec4899" />
+                  <stop offset="100%" stop-color="#be185d" />
+                </linearGradient>
+                <linearGradient id="gridGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+                  <stop offset="0%" stop-color="#a855f7" />
+                  <stop offset="100%" stop-color="#7e22ce" />
+                </linearGradient>
+              </defs>
+
+              <!-- Connection Lines -->
+              <!-- Solar PV to Inverter Unit -->
+              <path id="lineSolarToInv" d="M 250 102.5 L 370 135" class="flow-line solar-line" />
+              <!-- Grid AC Input to Inverter Unit (for Battery Charging) -->
+              <path id="lineGridToInv" d="M 250 302.5 C 310 302.5, 310 215, 370 215" class="flow-line grid-line" />
+              <!-- Battery DC Bus to Inverter Unit -->
+              <path id="lineInvToBatt" d="M 480 250 L 480 315" class="flow-line batt-line" />
+              <!-- Inverter DC-AC Direct Supply to Load (Straight path when inverting) -->
+              <path id="lineInvToLoad" d="M 590 185 L 710 185" class="flow-line load-line" />
+              <!-- TRUE Overhead Bypass Detour (Circumventing / avoiding the Inverter completely) -->
+              <path id="lineBypassToLoad"
+                d="M 250 280 C 295 280, 295 160, 295 127 A 12 12 0 0 1 295 103 C 295 45, 335 32, 480 32 C 625 32, 665 45, 710 135"
+                class="flow-line bypass-line" />
+
+              <!-- Overhead Bypass Relay Switch on the Detour Bridge -->
+              <g id="bypassRelayGroup" transform="translate(415, 19)" class="active">
+                <rect id="bypassSwitchPill" width="130" height="26" rx="13" class="bypass-switch-pill" />
+                <circle id="bypassSwitchDot" cx="16" cy="13" r="4" class="bypass-switch-dot" />
+                <text id="bypassSwitchText" x="72" y="17" text-anchor="middle" class="bypass-switch-text">🔄
+                  商用バイパス直結</text>
+              </g>
+
+              <!-- Output Route Path Indicators -->
+              <text x="660" y="125" class="flow-path-tag active-bypass" id="tagBypassPath" data-i18n="flow.tag_bypass">🔄 商用バイパス (迂回路)</text>
+              <text x="650" y="178" class="flow-path-tag" id="tagInvPath" data-i18n="flow.tag_inv">⚡ インバータ給電</text>
+
+              <!-- Nodes -->
+              <!-- 1. Solar PV Node -->
+              <g transform="translate(60, 56)" class="flow-node node-solar">
+                <rect width="190" height="92" rx="14" class="node-box" />
+                <text x="95" y="24" text-anchor="middle" class="node-title" data-i18n="flow.node_pv">☀️ 太陽光 (PV)</text>
+                <text x="95" y="47" text-anchor="middle" class="node-val" id="flowPvPower">0 W</text>
+                <text x="95" y="65" text-anchor="middle" class="node-sub" id="flowPvV">0.0 V</text>
+                <text x="95" y="81" text-anchor="middle" class="node-kwh" id="flowPvDailyKwh">本日累計: 0.000 kWh</text>
+              </g>
+
+              <!-- 2. Grid AC Input Node -->
+              <g transform="translate(60, 260)" class="flow-node node-grid">
+                <rect width="190" height="85" rx="14" class="node-box" />
+                <text x="95" y="26" text-anchor="middle" class="node-title" data-i18n="flow.node_grid">🔌 商用電源 (Grid)</text>
+                <text x="95" y="54" text-anchor="middle" class="node-val" id="flowGridPower">0 W</text>
+                <text x="95" y="72" text-anchor="middle" class="node-sub" id="flowGridV">未接続</text>
+              </g>
+
+              <!-- 3. Central Unit: LVYUAN HSI3000U (Dedicated Inverter Station) -->
+              <g transform="translate(370, 95)" class="flow-node node-inv" id="flowNodeInv">
+                <rect width="220" height="155" rx="16" class="node-box node-box-main" id="invOuterBox" />
+
+                <!-- Unit Header & Mode Badge -->
+                <text x="16" y="24" class="unit-model-title">⚡ HSI3000U</text>
+                <g id="flowStateBadgeGroup" transform="translate(112, 9)">
+                  <rect id="flowStateBadgeBg" width="98" height="20" rx="10" class="state-badge-bg" />
+                  <text id="flowStateBadgeText" x="49" y="14" text-anchor="middle" class="state-badge-text">待機中
+                    (OFF)</text>
+                </g>
+
+                <!-- Inverter Core Representation -->
+                <circle cx="110" cy="62" r="20" class="sub-block-icon-bg icon-bg-inv" id="invCoreCircle" />
+                <text x="110" y="68" text-anchor="middle" class="sub-block-icon" id="invCoreIcon">⚡</text>
+                <text x="110" y="94" text-anchor="middle" class="sub-block-title" data-i18n="flow.node_inv_core">DC-AC インバータ部</text>
+                <text x="110" y="112" text-anchor="middle" class="sub-block-status" id="flowInvCoreStatus">待機中
+                  (出力0W)</text>
+                <text x="110" y="128" text-anchor="middle" class="sub-block-desc" id="flowInvCoreDesc">商用バイパス中</text>
+
+                <!-- Unit Bottom Info Strip -->
+                <line x1="12" y1="136" x2="208" y2="136" stroke="rgba(255,255,255,0.08)" stroke-width="1" />
+                <text x="110" y="148" text-anchor="middle" class="unit-footer-info" id="flowBusV">DC Bus: 0.0V | 系統:
+                  101.4V</text>
+              </g>
+
+              <!-- 4. Battery Node -->
+              <g transform="translate(380, 310)" class="flow-node node-batt">
+                <rect width="200" height="90" rx="14" class="node-box" />
+                <text x="100" y="24" text-anchor="middle" class="node-title" data-i18n="flow.node_batt">🔋 バッテリー (24V)</text>
+                <text x="100" y="47" text-anchor="middle" class="node-val" id="flowBattSoc">0% (0.0V)</text>
+                <text x="100" y="65" text-anchor="middle" class="node-sub" id="flowBattFlow">0.0 A</text>
+                <text x="100" y="81" text-anchor="middle" class="node-kwh" id="flowBattDailyKwh">本日充電: 0.000 kWh</text>
+              </g>
+
+              <!-- 5. AC Load Node -->
+              <g transform="translate(710, 115)" class="flow-node node-load">
+                <rect width="190" height="105" rx="14" class="node-box" />
+                <text x="95" y="28" text-anchor="middle" class="node-title" data-i18n="flow.node_load">🏠 AC負荷 (Home)</text>
+                <text x="95" y="58" text-anchor="middle" class="node-val" id="flowLoadPower">0 W</text>
+                <text x="95" y="80" text-anchor="middle" class="node-sub" id="flowLoadPercent">0% 負荷</text>
+              </g>
+            </svg>
+          </div>
+        </div>
+
+        <!-- Real-Time & 24H Power Chart Area -->
+        <div class="panel chart-panel">
+          <div class="panel-header">
+            <div class="chart-header-left">
+              <h3 data-i18n="chart.title">📈 過去24時間 電力推移グラフ (Power History)</h3>
+              <span class="panel-badge" id="chartRangeBadge" data-i18n="chart.range_badge">過去24時間 (1分間隔)</span>
+            </div>
+            <div class="chart-controls-group">
+              <div class="chart-range-selector" id="chartRangeSelector">
+                <button class="btn-range active" data-range="24h" data-i18n="chart.range_24h">24時間</button>
+                <button class="btn-range" data-range="12h" data-i18n="chart.range_12h">12時間</button>
+                <button class="btn-range" data-range="6h" data-i18n="chart.range_6h">6時間</button>
+                <button class="btn-range" data-range="1h" data-i18n="chart.range_1h">1時間</button>
+                <button class="btn-range" data-range="live" data-i18n="chart.range_live">リアルタイム</button>
+              </div>
+              <div class="chart-legend-controls">
+                <span class="legend-chip chip-pv" data-i18n="history.legend_pv">■ PV発電 (W)</span>
+                <span class="legend-chip chip-load" data-i18n="history.legend_load">■ 負荷消費 (W)</span>
+                <span class="legend-chip chip-batt" style="color: #64748b;" data-i18n="history.legend_batt">┈ バッテリー充放電 (W)</span>
+                <span class="legend-chip chip-grid" data-i18n="history.legend_grid">■ 商用入力 (W)</span>
+                <span class="legend-chip chip-soc" style="color: #10b981; font-weight: 600;" data-i18n="history.legend_soc">━ バッテリー残量 (SOC %)</span>
+              </div>
+            </div>
+          </div>
+          <div class="chart-wrapper">
+            <canvas id="powerChart"></canvas>
+          </div>
+        </div>
+
+        <!-- Auto Rescue Battery Protection Control Panel -->
+        <div class="panel rescue-panel">
+          <div class="panel-header">
+            <div class="rescue-header-left">
+              <span class="rescue-icon">🛡️</span>
+              <div class="rescue-title-wrap">
+                <h3 data-i18n="rescue.title">夜間バッテリー保護・自動救済充電 (Auto-Rescue Charge)</h3>
+                <p class="rescue-subtitle" data-i18n="rescue.subtitle">待機電力による過放電を検知し、商用充電(CSO)で安全圏まで緊急補充電 ➔
+                  安全復帰後にOSOへ自動戻し</p>
+              </div>
+            </div>
+            <div class="rescue-status-pill-wrap">
+              <span class="rescue-status-pill mode-pill-standby" id="rescueStatusPill">
+                <span class="rescue-status-dot" id="rescueStatusDot"></span>
+                <span id="rescueStatusText">🟢 通常監視中 (OSO保持 / 23.5V以下で救済発動)</span>
+              </span>
+            </div>
+          </div>
+
+          <div class="rescue-panel-body">
+            <!-- Left: Settings & Threshold Inputs -->
+            <div class="rescue-settings-group">
+              <div class="rescue-switch-wrap">
+                <label class="toggle-switch">
+                  <input type="checkbox" id="chkRescueEnable" checked>
+                  <span class="toggle-slider"></span>
+                </label>
+                <span class="rescue-switch-label" id="rescueEnableLabel">自動救済機能: <strong>有効 (ON)</strong></span>
+              </div>
+
+              <div class="rescue-inputs-row">
+                <div class="rescue-input-item">
+                  <label for="inputRescueTrigger" data-i18n="rescue.trigger_label">🚨 救済開始電圧 (下限):</label>
+                  <div class="input-with-unit">
+                    <input type="number" id="inputRescueTrigger" step="0.1" min="20.0" max="28.0" value="23.5">
+                    <span class="input-unit">V</span>
+                  </div>
+                  <span class="input-help" data-i18n="rescue.trigger_help">この電圧以下で CSO (商用充電) へ自動切替</span>
+                </div>
+
+                <div class="rescue-input-item">
+                  <label for="inputRescueRecovery" data-i18n="rescue.recovery_label">✅ 救済停止電圧 (復帰):</label>
+                  <div class="input-with-unit">
+                    <input type="number" id="inputRescueRecovery" step="0.1" min="21.0" max="29.0" value="24.6">
+                    <span class="input-unit">V</span>
+                  </div>
+                  <span class="input-help" data-i18n="rescue.recovery_help">この電圧以上で OSO (太陽光のみ) へ自動復帰</span>
+                </div>
+
+                <div class="rescue-btn-wrap">
+                  <button id="btnSaveRescueConfig" class="btn btn-primary btn-sm" data-i18n="rescue.save_btn">💾
+                    閾値設定を保存</button>
+                </div>
+              </div>
+            </div>
+
+            <!-- Right: Direct Manual Priority Switching Buttons -->
+            <div class="rescue-manual-group">
+              <span class="manual-group-title" data-i18n="rescue.manual_title">⚡ 充電モード [06] 手動即時切替:</span>
+              <div class="charge-mode-pill-group" id="chargeModePillGroup">
+                <button class="btn-charge-mode" data-code="0" title="Solar First">CSO
+                  <span data-i18n="rescue.cso_sub">(太陽光優先)</span></button>
+                <button class="btn-charge-mode" data-code="1" title="Utility First">CUB <span data-i18n="rescue.cub_sub">(商用優先)</span></button>
+                <button class="btn-charge-mode" data-code="2" title="Solar &amp; Utility">SNU <span data-i18n="rescue.snu_sub">(同時充電)</span></button>
+                <button class="btn-charge-mode active" data-code="3" title="Solar Only">OSO
+                  <span data-i18n="rescue.oso_sub">(太陽光のみ)</span></button>
+              </div>
+              <span class="manual-group-desc" id="currentChargePriorityDesc">現在モード: 取得中...</span>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- TAB: DAILY GENERATION & CHARGING HISTORY (NEW) -->
+      <section id="tab-history" class="tab-pane">
+        <!-- Date Selector & History Toolbar -->
+        <div class="history-toolbar">
+          <div class="history-date-picker-wrap">
+            <label for="historyDateSelect" data-i18n="history.date_label">📅 表示対象日付:</label>
+            <select id="historyDateSelect" class="custom-select">
+              <!-- Dynamically populated with logged dates -->
+            </select>
+            <div class="history-quick-btns">
+              <button id="btnHistPrevDay" class="btn btn-outline btn-sm" data-i18n="history.prev_day">◀ 前日</button>
+              <button id="btnHistNextDay" class="btn btn-outline btn-sm" data-i18n="history.next_day">翌日 ▶</button>
+              <button id="btnHistToday" class="btn btn-primary btn-sm" data-i18n="history.today">今日 ⚡</button>
+            </div>
+          </div>
+          <div class="history-actions">
+            <button id="btnExportHistCsv" class="btn btn-outline btn-sm" data-i18n="history.export_csv">📥 この日のCSVを保存</button>
+          </div>
+        </div>
+
+        <!-- Selected Day Summary Cards -->
+        <div class="history-summary-grid">
+          <!-- PV Generation Card -->
+          <div class="history-stat-card solar-border">
+            <span class="hist-card-title" data-i18n="history.card_pv">☀️ 太陽光発電電力量 (PV)</span>
+            <div class="hist-card-val"><span id="histPvKwh">0.000</span><span>kWh</span></div>
+            <div class="hist-card-sub"><span data-i18n="history.card_pv_sub">最高発電出力:</span> <strong id="histPeakPvW">0</strong> W</div>
+          </div>
+
+          <!-- Battery Charge Card -->
+          <div class="history-stat-card batt-chg-border">
+            <span class="hist-card-title" data-i18n="history.card_chg">⚡ 蓄電池 充電電力量</span>
+            <div class="hist-card-val"><span id="histBattChgKwh">0.000</span><span>kWh</span></div>
+            <div class="hist-card-sub" data-i18n="history.card_chg_sub">PV充電 + 商用低電圧補充電</div>
+          </div>
+
+          <!-- Battery Discharge Card -->
+          <div class="history-stat-card batt-dis-border">
+            <span class="hist-card-title" data-i18n="history.card_dis">🔋 蓄電池 放電電力量</span>
+            <div class="hist-card-val"><span id="histBattDisKwh">0.000</span><span>kWh</span></div>
+            <div class="hist-card-sub"><span data-i18n="history.card_dis_sub">SOC範囲:</span> <strong id="histSocRange">--% 〜 --%</strong></div>
+          </div>
+
+          <!-- Home Load Consumption Card -->
+          <div class="history-stat-card load-border">
+            <span class="hist-card-title" data-i18n="history.card_load">🏠 家電・AC消費電力量</span>
+            <div class="hist-card-val"><span id="histLoadKwh">0.000</span><span>kWh</span></div>
+            <div class="hist-card-sub"><span data-i18n="history.card_load_sub">ピーク負荷:</span> <strong id="histPeakLoadW">0</strong> W</div>
+          </div>
+        </div>
+
+        <!-- Selected Day 24-Hour Detailed Curve -->
+        <div class="panel" style="margin-bottom: 20px;">
+          <div class="panel-header">
+            <div>
+              <h3>📈 <span id="histDetailTitle">--</span> <span data-i18n="history.detail_title">24時間電力推移 (1分間隔)</span></h3>
+              <span class="panel-badge" data-i18n="history.detail_sub">太陽光発電・消費負荷・充放電カーブ</span>
+            </div>
+            <div class="chart-legend-controls">
+              <span class="legend-chip chip-pv" data-i18n="history.legend_pv">■ PV発電 (W)</span>
+              <span class="legend-chip chip-load" data-i18n="history.legend_load">■ 負荷消費 (W)</span>
+              <span class="legend-chip chip-batt" style="color: #64748b;" data-i18n="history.legend_batt">┈ バッテリー充放電 (W)</span>
+              <span class="legend-chip chip-grid" data-i18n="history.legend_grid">■ 商用入力 (W)</span>
+              <span class="legend-chip chip-soc" style="color: #10b981; font-weight: 600;" data-i18n="history.legend_soc">━ バッテリー残量 (SOC %)</span>
+            </div>
+          </div>
+          <div class="history-chart-wrapper">
+            <canvas id="dayDetailChart"></canvas>
+          </div>
+        </div>
+
+        <!-- Daily Comparison Bar Chart -->
+        <div class="panel" style="margin-bottom: 20px;">
+          <div class="panel-header">
+            <div>
+              <h3 data-i18n="history.daily_chart_title">📊 日別発電・充放電・消費比較 (Daily Comparison)</h3>
+              <span class="panel-badge" data-i18n="history.daily_chart_sub">過去の全記録推移</span>
+            </div>
+            <div class="chart-legend-controls">
+              <span class="legend-chip chip-pv" data-i18n="history.legend_pv_kwh">■ PV発電量 (kWh)</span>
+              <span class="legend-chip chip-batt" data-i18n="history.legend_chg_kwh">■ バッテリー充電量 (kWh)</span>
+              <span class="legend-chip chip-load" data-i18n="history.legend_load_kwh">■ 負荷消費量 (kWh)</span>
+            </div>
+          </div>
+          <div class="history-chart-wrapper">
+            <canvas id="dailyBarChart"></canvas>
+          </div>
+        </div>
+
+        <!-- Full History Table -->
+        <div class="panel">
+          <div class="panel-header">
+            <h3 data-i18n="history.table_title">📑 過去の全日程集計一覧表 (Daily Telemetry Log)</h3>
+            <span class="panel-badge" id="histDaysCountBadge">0</span>
+          </div>
+          <div class="history-table-container">
+            <table class="history-table">
+              <thead>
+                <tr>
+                  <th data-i18n="history.th_date">日付</th>
+                  <th data-i18n="history.th_pv">☀️ PV総発電量</th>
+                  <th data-i18n="history.th_chg">⚡ バッテリー充電量</th>
+                  <th data-i18n="history.th_dis">🔋 バッテリー放電量</th>
+                  <th data-i18n="history.th_load">🏠 負荷総消費量</th>
+                  <th data-i18n="history.th_peak_pv">PV最大出力</th>
+                  <th data-i18n="history.th_peak_load">最大消費負荷</th>
+                  <th data-i18n="history.th_soc">バッテリーSOC範囲</th>
+                  <th data-i18n="history.th_action">操作</th>
+                </tr>
+              </thead>
+              <tbody id="dailyHistoryTableBody">
+                <!-- Dynamically generated rows -->
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+
+      <!-- TAB 2: FAULTS & DIAGNOSTICS (NEW) -->
+      <section id="tab-faults" class="tab-pane">
+        <!-- Active Faults Section -->
+        <div class="panel detail-panel full-panel">
+          <div class="panel-header">
+            <h3 data-i18n="faults.active_title">🚨 現在アクティブな障害・アラーム (Active Faults &amp; Warnings)</h3>
+            <span class="panel-badge" id="activeFaultCountBadge">0</span>
+          </div>
+          <div class="detail-panel-body">
+            <div id="activeFaultsList" class="fault-cards-grid">
+              <!-- Dynamically populated or 'All Normal' message -->
+            </div>
+          </div>
+        </div>
+
+        <!-- Beep Alarm Mystery Guide (Why is it beeping with no error code?) -->
+        <div class="panel detail-panel full-panel"
+          style="border-color: rgba(245, 158, 11, 0.5); background: linear-gradient(135deg, rgba(245, 158, 11, 0.08), rgba(17, 24, 39, 0.8));">
+          <div class="panel-header">
+            <h3 style="color: #fbbf24;" data-i18n="faults.beep_title">🔔 エラー表示がないのに「2秒ビープ・1秒休み」が鳴る原因と解決方法</h3>
+            <span class="panel-badge" data-i18n="faults.faq_badge"
+              style="background: rgba(245, 158, 11, 0.2); color: #fbbf24; border-color: rgba(245, 158, 11, 0.4);">よくあるご質問
+              (FAQ)</span>
+          </div>
+          <div class="detail-panel-body">
+            <p style="font-size: 0.86rem; color: #f3f4f6; line-height: 1.6;" data-i18n="faults.beep_intro">
+              LCD画面にエラーコード（Fxx等）が表示されず、ソフトでも障害が検出されないのにビープ音が断続して鳴る場合、それは「機器故障（Fault）」ではなく「状態報知・事前警告アラーム」です：
+            </p>
+
+            <div class="breakdown-grid"
+              style="grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); margin-top: 10px;">
+              <div class="breakdown-item"
+                style="border-color: rgba(245, 158, 11, 0.3); background: rgba(0,0,0,0.3); padding: 14px;">
+                <strong style="color: #fbbf24; font-size: 0.95rem;" data-i18n="faults.beep_1_title">① 【最有力】バッテリー給電中アラーム (UPSモード報知)</strong>
+                <p style="font-size: 0.8rem; color: #d1d5db; margin-top: 6px; line-height: 1.5;" data-i18n="faults.beep_1_desc">
+                  商用電源遮断時やSBUバッテリー給電中に鳴る報知音です。本体設定 [18]（または [26]）を ENA ➔ dIS にすると消音できます。
+                </p>
+              </div>
+
+              <div class="breakdown-item"
+                style="border-color: rgba(6, 182, 212, 0.3); background: rgba(0,0,0,0.3); padding: 14px;">
+                <strong style="color: #38bdf8; font-size: 0.95rem;" data-i18n="faults.beep_2_title">② バッテリー低残量・低電圧の事前警告</strong>
+                <p style="font-size: 0.8rem; color: #d1d5db; margin-top: 6px; line-height: 1.5;" data-i18n="faults.beep_2_desc">
+                  高負荷使用時の電圧サグで設定 [15]/[59] を一時的に下回ると鳴ります。充電するか負荷を下げてください。
+                </p>
+              </div>
+
+              <div class="breakdown-item"
+                style="border-color: rgba(168, 85, 247, 0.3); background: rgba(0,0,0,0.3); padding: 14px;">
+                <strong style="color: #c084fc; font-size: 0.95rem;" data-i18n="faults.beep_3_title">③ 商用入力電圧の低下 (94V台への電圧低下)</strong>
+                <p style="font-size: 0.8rem; color: #d1d5db; margin-top: 6px; line-height: 1.5;" data-i18n="faults.beep_3_desc">
+                  設定 [03] が UPS（狭範囲）の場合に鳴ることがあります。本体設定 [03] を APL（広範囲）に変更してください。
+                </p>
+              </div>
+            </div>
+
+            <div data-i18n="faults.beep_tip"
+              style="background: rgba(0,0,0,0.4); padding: 12px 16px; border-radius: 8px; border-left: 3px solid #10b981; margin-top: 8px; font-size: 0.82rem; color: #d1d5db;">
+              💡 すべてのブザー音を完全に止めたい場合：本体設定 [25] Buzzer Alarm を ENA ➔ dIS に変更してください（重大故障時は鳴ります）。
+            </div>
+          </div>
+        </div>
+
+        <!-- Historical Fault Log -->
+        <div class="panel detail-panel full-panel">
+          <div class="panel-header">
+            <h3 data-i18n="faults.history_title">📜 障害・警告 履歴ログ (Fault History)</h3>
+            <button id="btnClearFaultHistory" class="btn btn-outline btn-sm" data-i18n="faults.clear_btn">履歴クリア</button>
+          </div>
+          <div class="detail-panel-body">
+            <div class="table-responsive">
+              <table class="data-table">
+                <thead>
+                  <tr>
+                    <th data-i18n="faults.th_time">時刻</th>
+                    <th data-i18n="faults.th_code">エラーコード</th>
+                    <th data-i18n="faults.th_symbol">シンボル名</th>
+                    <th data-i18n="faults.th_name">エラー名称</th>
+                    <th style="width: 125px;" data-i18n="faults.th_sev">深刻度</th>
+                    <th data-i18n="faults.th_cause">発生原因</th>
+                    <th data-i18n="faults.th_action">推奨対処法</th>
+                  </tr>
+                </thead>
+                <tbody id="faultHistoryBody">
+                  <tr>
+                    <td colspan="7" class="text-center text-muted" data-i18n="faults.no_history">本セッション中の障害履歴はありません</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+
+        <!-- Full Error Code Manual Encyclopedia -->
+        <div class="panel detail-panel full-panel">
+          <div class="panel-header">
+            <h3 data-i18n="faults.dict_title">📖 HSI3000U 全エラーコード解説・トラブルシューティング事典 (全64種)</h3>
+            <div class="search-box">
+              <input type="text" id="faultSearchInput" class="input-text" data-i18n-placeholder="faults.search_placeholder" placeholder="コード番号や名称で検索...">
+            </div>
+          </div>
+          <div class="detail-panel-body">
+            <div class="table-responsive">
+              <table class="data-table">
+                <thead>
+                  <tr>
+                    <th style="width: 70px;" data-i18n="faults.th_code">コード</th>
+                    <th style="width: 140px;" data-i18n="faults.th_symbol">シンボル名</th>
+                    <th style="width: 180px;" data-i18n="faults.th_name">エラー名称</th>
+                    <th style="width: 125px;" data-i18n="faults.th_sev">区分</th>
+                    <th data-i18n="faults.th_cause">発生原因</th>
+                    <th data-i18n="faults.th_action">復旧手順・対処方法</th>
+                  </tr>
+                </thead>
+                <tbody id="faultEncyclopediaBody">
+                  <!-- Dynamically populated from FAULT_DATABASE -->
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- TAB 3: BATTERY DETAILS -->
+      <section id="tab-battery" class="tab-pane">
+        <div class="details-grid">
+          <div class="panel detail-panel">
+            <div class="panel-header">
+              <h3 data-i18n="battery.status_title">🔋 バッテリー蓄電ステータス (LiFePO4 8S 24V 100Ah)</h3>
+              <span class="panel-badge" id="battChemBadge"
+                style="background: rgba(16,185,129,0.2); color: #10b981; border-color: rgba(16,185,129,0.4);">LiFePO4 8S</span>
+            </div>
+            <div class="gauge-card-body">
+              <div class="circular-gauge-container">
+                <svg class="circular-gauge" viewBox="0 0 160 160">
+                  <circle class="gauge-bg" cx="80" cy="80" r="68" />
+                  <circle class="gauge-fill" id="battGaugeCircle" cx="80" cy="80" r="68" />
+                </svg>
+                <div class="gauge-inner">
+                  <span class="gauge-val" id="battGaugeVal">0</span>
+                  <span class="gauge-unit">% SOC</span>
+                </div>
+              </div>
+              <div class="gauge-stats-list">
+                <div class="stat-row">
+                  <span class="label" data-i18n="battery.rem_ah">推定残容量 (Remaining Ah):</span>
+                  <strong class="val" id="detBattRemainingAh" style="color: #10b981; font-size: 1.05rem;">0.0 Ah / 100.0 Ah</strong>
+                </div>
+                <div class="stat-row">
+                  <span class="label" data-i18n="battery.rem_kwh">推定残電力量 (Energy):</span>
+                  <strong class="val" id="detBattRemainingKwh">0.00 kWh / 2.56 kWh</strong>
+                </div>
+                <div class="stat-row">
+                  <span class="label" data-i18n="battery.term_v">端子電圧 (Terminal Voltage):</span>
+                  <strong class="val" id="detBattV">0.0 V</strong>
+                </div>
+                <div class="stat-row">
+                  <span class="label" data-i18n="battery.curr">充放電電流 (Current):</span>
+                  <strong class="val" id="detBattA">0.0 A</strong>
+                </div>
+                <div class="stat-row">
+                  <span class="label" data-i18n="battery.pwr">充放電電力 (Power):</span>
+                  <strong class="val" id="detBattW">0 W</strong>
+                </div>
+                <div class="stat-row">
+                  <span class="label" data-i18n="battery.temp">推定バッテリー温度:</span>
+                  <strong class="val" id="detBattTemp">25 °C</strong>
+                </div>
+                <div class="stat-row">
+                  <span class="label" data-i18n="battery.raw_soc">本体レジスタ換算値 (0x0100):</span>
+                  <strong class="val" id="detBattRawSoc" style="color: #94a3b8;">-- %</strong>
+                </div>
+                <div class="stat-row">
+                  <span class="label" data-i18n="battery.engine_status">推定エンジン動作状態:</span>
+                  <strong class="val" id="detBattSocStatus" style="color: #38bdf8;">--</strong>
+                </div>
+                <div class="stat-row">
+                  <span class="label" data-i18n="battery.cycles">積算推定サイクル数:</span>
+                  <strong class="val" id="detBattCycles">0.00</strong>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="panel detail-panel">
+            <div class="panel-header">
+              <h3 data-i18n="battery.stage_title">⚡ 充電ステージ &amp; 電流内訳</h3>
+            </div>
+            <div class="detail-panel-body">
+              <div class="stage-card">
+                <div class="stage-label" data-i18n="battery.chg_state_lbl">現在の充電状態 (Charge State):</div>
+                <div class="stage-val" id="detChargeState">--</div>
+                <p class="stage-desc" id="detChargeStateDesc" data-i18n="battery.chg_state_desc">インバータからの充電ステージ</p>
+              </div>
+
+              <div class="breakdown-grid">
+                <div class="breakdown-item">
+                  <span class="breakdown-title" data-i18n="battery.pv_chg_a">☀️ ソーラー充電電流</span>
+                  <strong class="breakdown-val" id="detPvChargeA">0.0 A</strong>
+                  <span class="breakdown-sub" data-i18n="battery.pv_chg_sub">PV MPPTより供給</span>
+                </div>
+                <div class="breakdown-item">
+                  <span class="breakdown-title" data-i18n="battery.ac_chg_a">🔌 商用電源充電電流</span>
+                  <strong class="breakdown-val" id="detMainsChargeA">0.0 A</strong>
+                  <span class="breakdown-sub" data-i18n="battery.ac_chg_sub">AC商用入力より供給</span>
+                </div>
+                <div class="breakdown-item">
+                  <span class="breakdown-title" data-i18n="battery.tot_chg_w">⚡ 総充電電力</span>
+                  <strong class="breakdown-val" id="detTotalChargeW">0 W</strong>
+                  <span class="breakdown-sub" data-i18n="battery.tot_chg_sub">バッテリーへ注入中</span>
+                </div>
+              </div>
+
+              <h4 class="sub-heading" data-i18n="battery.volt_rules_title">⚡ 現在有効な動作ルール (電圧制御モード)</h4>
+              <p style="font-size:0.8rem; color:var(--text-muted); margin-bottom: 0.8rem;" data-i18n="battery.volt_rules_note">
+                ※ 本機のLCD設定メニュー番号（[15], [04], [05], [14], [09], [11]）と直結した実際の動作電圧ルールです。
+              </p>
+              <div class="thresholds-table">
+                <div class="thresh-row">
+                  <span data-i18n="battery.rule_cutoff">放電終止・出力停止 [15]:</span>
+                  <strong id="detCutoffV" style="color: #ef4444;">23.4 V</strong>
+                </div>
+                <div class="thresh-row">
+                  <span data-i18n="battery.rule_to_mains">商用電源切替 [04] (SBUモード時):</span>
+                  <strong id="detSwitchMainsV" style="color: #f59e0b;">24.6 V</strong>
+                </div>
+                <div class="thresh-row">
+                  <span data-i18n="battery.rule_to_inv">インバータ給電復帰 [05]:</span>
+                  <strong id="detSwitchInvV" style="color: #10b981;">27.4 V</strong>
+                </div>
+                <div class="thresh-row">
+                  <span data-i18n="battery.rule_alarm">低電圧警告アラーム [14]:</span>
+                  <strong id="detAlarmV">24.4 V</strong>
+                </div>
+                <div class="thresh-row">
+                  <span data-i18n="battery.rule_boost">急速・バルク充電電圧 [09]:</span>
+                  <strong id="detBoostV">28.4 V</strong>
+                </div>
+                <div class="thresh-row">
+                  <span data-i18n="battery.rule_float">フロート浮動充電電圧 [11]:</span>
+                  <strong id="detFloatV">28.4 V</strong>
+                </div>
+              </div>
+
+              <h4 class="sub-heading" style="margin-top: 1.5rem; color: var(--text-muted);" data-i18n="battery.soc_rules_title">📊 本体EEPROM内のSOC設定 (※BMS通信時用 / 現在は未使用)</h4>
+              <p style="font-size:0.8rem; color:var(--text-muted); margin-bottom: 0.8rem;" data-i18n="battery.soc_rules_note">
+                ※ 電圧制御モードで動作中のため、以下のSOC設定値は実際の保護動作には影響しません。
+              </p>
+              <div class="thresholds-table" style="opacity: 0.8;">
+                <div class="thresh-row">
+                  <span data-i18n="settings.r_s_cut">放電停止 [59] (Cutoff SOC):</span>
+                  <strong id="detCutoffSoc">5 %</strong>
+                </div>
+                <div class="thresh-row">
+                  <span>Alarm SOC [63]:</span>
+                  <strong id="detAlarmSoc">15 %</strong>
+                </div>
+                <div class="thresh-row">
+                  <span data-i18n="settings.r_s_mains">商用切替 [60] (To Mains SOC):</span>
+                  <strong id="detSwitchMainsSoc">10 %</strong>
+                </div>
+                <div class="thresh-row">
+                  <span data-i18n="settings.r_s_inv">インバータ復帰 [61] (To Inv SOC):</span>
+                  <strong id="detSwitchInvSoc">100 %</strong>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- EKF Adaptive Estimation Engine Guide Card -->
+        <div class="panel detail-panel full-panel"
+          style="margin-top: 1.2rem; border-color: rgba(16, 185, 129, 0.4); background: linear-gradient(135deg, rgba(16, 185, 129, 0.06), rgba(17, 24, 39, 0.85));">
+          <div class="panel-header">
+            <h3 style="color: #34d399;" data-i18n="battery.ekf_title">🧠 LiFePO4 (リン酸鉄リチウム 8S 24V 100Ah) 運用適応型・自己学習SOC推定エンジン</h3>
+            <span class="panel-badge" data-i18n="battery.ekf_badge"
+              style="background: rgba(16, 185, 129, 0.2); color: #34d399; border-color: rgba(16, 185, 129, 0.4);">拡張カルマンフィルタ (EKF) + 1次テブナン等価回路</span>
+          </div>
+          <div class="detail-panel-body">
+            <p style="font-size: 0.86rem; color: #f3f4f6; line-height: 1.6;" data-i18n="battery.ekf_intro">
+              リン酸鉄リチウム（LiFePO4）は20%〜80%の電圧変化が極めて平坦なため、本体の鉛電池換算では大きな誤差が生じます。本システムは通常運用中に真値へ自己収束するハイブリッド適応推定を搭載しています。
+            </p>
+
+            <div class="breakdown-grid"
+              style="grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); margin-top: 12px;">
+              <div class="breakdown-item"
+                style="border-color: rgba(16, 185, 129, 0.3); background: rgba(0,0,0,0.3); padding: 14px;">
+                <strong style="color: #34d399; font-size: 0.95rem;" data-i18n="battery.ekf_1_title">① 充放電中のクーロン積算 (電流積分)</strong>
+                <p style="font-size: 0.8rem; color: #d1d5db; margin-top: 6px; line-height: 1.5;" data-i18n="battery.ekf_1_desc">
+                  負荷運転中の電圧降下に惑わされず、充放電電流を高精度に積算（効率99%）してSOCを追跡します。
+                </p>
+              </div>
+
+              <div class="breakdown-item"
+                style="border-color: rgba(56, 189, 248, 0.3); background: rgba(0,0,0,0.3); padding: 14px;">
+                <strong style="color: #38bdf8; font-size: 0.95rem;" data-i18n="battery.ekf_2_title">② 待機時の分極減衰 &amp; OCV適応収束</strong>
+                <p style="font-size: 0.8rem; color: #d1d5db; margin-top: 6px; line-height: 1.5;" data-i18n="battery.ekf_2_desc">
+                  微弱電流時（|I| &lt; 0.3A）は1次テブナン等価回路で分極減衰を計算し、静止開放電圧（OCV）曲線へ滑らかに収束します。
+                </p>
+              </div>
+
+              <div class="breakdown-item"
+                style="border-color: rgba(168, 85, 247, 0.3); background: rgba(0,0,0,0.3); padding: 14px;">
+                <strong style="color: #c084fc; font-size: 0.95rem;" data-i18n="battery.ekf_3_title">③ 電圧境界アンカー &amp; 状態の自動永続化</strong>
+                <p style="font-size: 0.8rem; color: #d1d5db; margin-top: 6px; line-height: 1.5;" data-i18n="battery.ekf_3_desc">
+                  満充電（28.0V＋テイル電流）で100%へ校正し、学習状態を logs/lfp_soc_state.json に自動保存します。
+                </p>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- TAB 4: SOLAR (PV) -->
+      <section id="tab-solar" class="tab-pane">
+        <div class="details-grid">
+          <div class="panel detail-panel">
+            <div class="panel-header">
+              <h3 data-i18n="solar.pv1_title">☀️ PV1 MPPT入力テレメトリ</h3>
+              <span class="panel-badge">Main MPPT Tracker</span>
+            </div>
+            <div class="detail-panel-body">
+              <div class="solar-hero-box">
+                <div class="solar-hero-metric">
+                  <span class="hero-label" data-i18n="solar.pv1_pwr">PV1 発電電力</span>
+                  <strong class="hero-num" id="detPv1Power">0</strong>
+                  <span class="hero-unit">Watts</span>
+                </div>
+                <div class="solar-sub-grid">
+                  <div class="solar-sub-cell">
+                    <span data-i18n="solar.pv1_v">PV1 入力電圧:</span>
+                    <strong id="detPv1Voltage">0.0 V</strong>
+                  </div>
+                  <div class="solar-sub-cell">
+                    <span data-i18n="solar.pv1_a">PV1 入力電流:</span>
+                    <strong id="detPv1Current">0.0 A</strong>
+                  </div>
+                </div>
+              </div>
+
+              <div class="solar-stats-list">
+                <div class="stat-row">
+                  <span data-i18n="solar.daily_kwh">本日累計発電量 (Daily kWh):</span>
+                  <strong class="val text-gold" id="detPvDailyKwh">0.00 kWh</strong>
+                </div>
+                <div class="stat-row">
+                  <span data-i18n="solar.mppt_range">MPPT動作電圧範囲:</span>
+                  <span class="val">30V - 100V DC (HSI3000U)</span>
+                </div>
+                <div class="stat-row">
+                  <span data-i18n="solar.max_voc">最大PV入力開放電圧 (Voc):</span>
+                  <span class="val">100V / 150V Max</span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="panel detail-panel">
+            <div class="panel-header">
+              <h3 data-i18n="solar.pv2_title">☀️ PV2 / 拡張MPPTステータス</h3>
+            </div>
+            <div class="detail-panel-body">
+              <div class="pv2-box">
+                <p data-i18n="solar.pv2_note">HSI3000U はシングルMPPTモデルのため PV1 が主系統となります（マルチMPPT機では 0x010F–0x0111 から読出）。</p>
+                <div class="stat-row">
+                  <span data-i18n="solar.pv2_v">PV2 電圧:</span>
+                  <strong class="val" id="detPv2V">0.0 V</strong>
+                </div>
+                <div class="stat-row">
+                  <span data-i18n="solar.pv2_a">PV2 電流:</span>
+                  <strong class="val" id="detPv2A">0.0 A</strong>
+                </div>
+                <div class="stat-row">
+                  <span data-i18n="solar.pv2_w">PV2 電力:</span>
+                  <strong class="val" id="detPv2W">0 W</strong>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- TAB 5: INVERTER & AC LOAD -->
+      <section id="tab-inverter" class="tab-pane">
+        <div class="details-grid">
+          <div class="panel detail-panel">
+            <div class="panel-header">
+              <h3 data-i18n="inverter.out_title">⚡ インバータ AC出力ステータス</h3>
+              <span class="panel-badge" id="invModeBadge">Inverter Mode</span>
+            </div>
+            <div class="detail-panel-body">
+              <div class="stat-row">
+                <span data-i18n="inverter.out_v">インバータ出力電圧:</span>
+                <strong class="val" id="detInvV">100.0 V</strong>
+              </div>
+              <div class="stat-row">
+                <span data-i18n="inverter.out_a">インバータ出力電流:</span>
+                <strong class="val" id="detInvA">0.0 A</strong>
+              </div>
+              <div class="stat-row">
+                <span data-i18n="inverter.out_hz">インバータ周波数:</span>
+                <strong class="val" id="detInvHz">50.00 Hz</strong>
+              </div>
+              <div class="stat-row">
+                <span data-i18n="inverter.bus_v">DC高圧バス電圧 (PBus):</span>
+                <strong class="val text-cyan" id="detBusV">0.0 V</strong>
+              </div>
+              <p class="note-text" data-i18n="inverter.bus_note">※DC高圧バス電圧は内部で昇圧された直流バスライン（通常約380V〜420V DC）の健全性を示します。</p>
+            </div>
+          </div>
+
+          <div class="panel detail-panel">
+            <div class="panel-header">
+              <h3 data-i18n="inverter.load_title">🏠 AC負荷消費 (Load Details)</h3>
+            </div>
+            <div class="detail-panel-body">
+              <div class="stat-row">
+                <span data-i18n="inverter.load_w">AC負荷 有効電力 (W):</span>
+                <strong class="val text-pink" id="detLoadW">0 W</strong>
+              </div>
+              <div class="stat-row">
+                <span data-i18n="inverter.load_va">AC負荷 皮相電力 (VA):</span>
+                <strong class="val" id="detLoadVa">0 VA</strong>
+              </div>
+              <div class="stat-row">
+                <span data-i18n="inverter.load_a">AC負荷電流 (Load A):</span>
+                <strong class="val" id="detLoadA">0.0 A</strong>
+              </div>
+              <div class="stat-row">
+                <span data-i18n="inverter.load_pct">インバータ負荷率 (%):</span>
+                <strong class="val" id="detLoadPct">0 %</strong>
+              </div>
+              <div class="progress-bar-container">
+                <div class="progress-bar load-fill" id="detLoadBar" style="width: 0%"></div>
+              </div>
+              <p class="note-text" data-i18n="inverter.load_note">定格出力: 3000W / 3000VA (過負荷110%以上で警告アラームが作動します)</p>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- TAB 6: GRID (MAINS) -->
+      <section id="tab-grid" class="tab-pane">
+        <div class="panel detail-panel full-panel">
+          <div class="panel-header">
+            <h3 data-i18n="grid.title">🔌 商用電源 / 発電機 AC入力 (Grid Input)</h3>
+            <span class="panel-badge" id="detGridOnlineBadge">商用入力なし</span>
+          </div>
+          <div class="detail-panel-body">
+            <div class="grid-metrics-cards">
+              <div class="metric-card">
+                <span class="metric-label" data-i18n="grid.v">商用 AC電圧</span>
+                <strong class="metric-val" id="detGridV">0.0</strong>
+                <span class="metric-unit">V AC</span>
+              </div>
+              <div class="metric-card">
+                <span class="metric-label" data-i18n="grid.a">商用 AC電流</span>
+                <strong class="metric-val" id="detGridA">0.0</strong>
+                <span class="metric-unit">A</span>
+              </div>
+              <div class="metric-card">
+                <span class="metric-label" data-i18n="grid.hz">商用 周波数</span>
+                <strong class="metric-val" id="detGridHz">0.00</strong>
+                <span class="metric-unit">Hz</span>
+              </div>
+              <div class="metric-card">
+                <span class="metric-label" data-i18n="grid.w">商用 受電電力</span>
+                <strong class="metric-val" id="detGridW">0</strong>
+                <span class="metric-unit">Watts</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- TAB 7: THERMAL & HARDWARE HEALTH -->
+      <section id="tab-hardware" class="tab-pane">
+        <div class="details-grid">
+          <div class="panel detail-panel full-panel">
+            <div class="panel-header">
+              <h3 data-i18n="hardware.title">🌡️ ヒートシンク温度監視 (Hardware Thermal)</h3>
+            </div>
+            <div class="detail-panel-body">
+              <div class="temp-gauges-grid">
+                <div class="temp-gauge-card">
+                  <span class="temp-icon">🔥</span>
+                  <span class="temp-name" data-i18n="hardware.hs_a">ヒートシンク A</span>
+                  <strong class="temp-val" id="tempAVal">0.0 °C</strong>
+                  <span class="temp-sub" data-i18n="hardware.hs_a_sub">DC-DC 昇圧部</span>
+                </div>
+                <div class="temp-gauge-card">
+                  <span class="temp-icon">⚡</span>
+                  <span class="temp-name" data-i18n="hardware.hs_b">ヒートシンク B</span>
+                  <strong class="temp-val" id="tempBVal">0.0 °C</strong>
+                  <span class="temp-sub" data-i18n="hardware.hs_b_sub">DC-AC インバータ部</span>
+                </div>
+                <div class="temp-gauge-card">
+                  <span class="temp-icon">🌀</span>
+                  <span class="temp-name" data-i18n="hardware.hs_c">ヒートシンク C</span>
+                  <strong class="temp-val" id="tempCVal">0.0 °C</strong>
+                  <span class="temp-sub" data-i18n="hardware.hs_c_sub">MPPT / 変圧器部</span>
+                </div>
+              </div>
+              <p class="note-text" data-i18n="hardware.note">※80°Cを超えると冷却ファンが高速回転し、85°Cで自動熱保護停止します。</p>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- TAB 8: SETTINGS INSPECTOR -->
+      <section id="tab-settings" class="tab-pane">
+        <div class="panel detail-panel full-panel">
+          <div class="panel-header">
+            <h3 data-i18n="settings.title">⚙️ インバータ内部設定パラメータ (Settings Explorer)</h3>
+            <span class="panel-badge" data-i18n="settings.badge">EEPROM 設定値読取</span>
+          </div>
+          <div class="detail-panel-body">
+            <div class="table-responsive">
+              <table class="data-table">
+                <thead>
+                  <tr>
+                    <th data-i18n="settings.th_reg">レジスタ</th>
+                    <th data-i18n="settings.th_item">設定項目</th>
+                    <th data-i18n="settings.th_val">現在の設定値</th>
+                    <th data-i18n="settings.th_desc">説明・備考</th>
+                  </tr>
+                </thead>
+                <tbody id="settingsTableBody">
+                  <!-- Populated -->
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- TAB 9: REGISTER SCANNER -->
+      <section id="tab-scanner" class="tab-pane">
+        <div class="panel detail-panel full-panel">
+          <div class="panel-header">
+            <h3 data-i18n="scanner.title">🔍 生Modbusレジスタスキャナ (Register Scanner)</h3>
+            <span class="panel-badge">Function Code 0x03</span>
+          </div>
+          <div class="detail-panel-body">
+            <p class="scanner-desc" data-i18n="scanner.desc">
+              任意のModbusアドレス範囲をスキャンし、インバータが応答する生データ（16進・10進・符号付き）と既知の定義を調査できます。
+            </p>
+            <div class="scanner-controls">
+              <div class="scanner-input-group">
+                <label for="scanStartAddr" data-i18n="scanner.start_addr">開始アドレス:</label>
+                <input type="text" id="scanStartAddr" value="0x0100" class="input-text" placeholder="0x0100 / 256">
+              </div>
+              <div class="scanner-input-group">
+                <label for="scanCount" data-i18n="scanner.count">読取レジスタ数:</label>
+                <input type="number" id="scanCount" value="16" min="1" max="64" class="input-text">
+              </div>
+              <button id="btnRunScan" class="btn btn-primary" data-i18n="scanner.run_btn">スキャン実行</button>
+
+              <div class="scanner-presets">
+                <button class="btn btn-preset" data-addr="0x0100" data-count="16" data-i18n="scanner.preset_pv">PV/バッテリー (0x0100-)</button>
+                <button class="btn btn-preset" data-addr="0x0200" data-count="12" data-i18n="scanner.preset_fault">障害ビット (0x0200-)</button>
+                <button class="btn btn-preset" data-addr="0x0210" data-count="16" data-i18n="scanner.preset_inv">インバータ/グリッド (0x0210-)</button>
+                <button class="btn btn-preset" data-addr="0x0220" data-count="10" data-i18n="scanner.preset_temp">温度/DCバス (0x0220-)</button>
+                <button class="btn btn-preset" data-addr="0xE200" data-count="16" data-i18n="scanner.preset_set">設定領域 (0xE200-)</button>
+              </div>
+            </div>
+
+            <div class="table-responsive">
+              <table class="data-table">
+                <thead>
+                  <tr>
+                    <th>Address (Hex)</th>
+                    <th>Address (Dec)</th>
+                    <th>Status</th>
+                    <th>Raw Hex</th>
+                    <th>Unsigned 16</th>
+                    <th>Signed 16</th>
+                    <th data-i18n="scanner.th_name">既知パラメータ名</th>
+                    <th data-i18n="scanner.th_desc">解説</th>
+                  </tr>
+                </thead>
+                <tbody id="scannerTableBody">
+                  <tr>
+                    <td colspan="8" class="text-center text-muted" data-i18n="scanner.empty">スキャン実行ボタンを押してください</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- TAB 10: LIVE TERMINAL CONSOLE (NEW) -->
+      <section id="tab-terminal" class="tab-pane">
+        <div class="panel detail-panel full-panel">
+          <div class="panel-header">
+            <h3 data-i18n="terminal.title">📡 サーバー通信コンソール・リアルタイムログ (Live Terminal)</h3>
+            <div class="terminal-actions">
+              <button id="btnClearTerminal" class="btn btn-outline btn-sm" data-i18n="terminal.clear">ログ消去</button>
+              <label class="terminal-auto-scroll-label">
+                <input type="checkbox" id="chkAutoScroll" checked> <span data-i18n="terminal.autoscroll">自動スクロール</span>
+              </label>
+            </div>
+          </div>
+          <div class="detail-panel-body">
+            <div class="terminal-window" id="terminalWindow">
+              <div class="terminal-line info" data-i18n="terminal.init">[00:00:00] [INFO] システム起動待機中...</div>
+            </div>
+            <p class="note-text" data-i18n="terminal.note">※このログはPythonサーバー側のコマンドプロンプト（黒い画面）にリアルタイムで流れている通信ログと連動しています。</p>
+          </div>
+        </div>
+      </section>
+
+    </main>
+
+    <!-- Modal for Smartphone LAN Access -->
+    <div id="lanModal" class="modal-backdrop hidden">
+      <div class="modal-card">
+        <div class="modal-header">
+          <h3 data-i18n="modal.lan_title">📱 スマホ・タブレットからのアクセス方法</h3>
+          <button id="btnCloseModal" class="modal-close-btn">&times;</button>
+        </div>
+        <div class="modal-body">
+          <p data-i18n="modal.lan_desc">このパソコンが接続しているWi-Fiと同じWi-Fiにスマホを接続し、スマホのブラウザ（SafariやChrome）で以下のURLを開いてください：</p>
+          <div class="url-badge-box">
+            <code id="lanAccessUrl">http://192.168.x.x:8000</code>
+          </div>
+          <p class="modal-tip" data-i18n="modal.lan_tip">💡 WIFIアタッチメントがなくても、パソコンを家庭内サーバーとして家中どこからでもインバータ状態を確認できます！</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- Footer -->
+    <footer class="app-footer">
+      <span>LVYUAN HSI3000U Telemetry System &copy; 2026</span>
+      <span class="footer-dot">•</span>
+      <span id="footerConnectionInfo">COM5 (9600, 8, N, 1)</span>
+      <span class="footer-dot">•</span>
+      <span id="footerTimestamp">--:--:--</span>
+    </footer>
+  </div>
+
+  <script src="/static/i18n.js?v=1.0"></script>
+  <script src="/static/app.js?v=2.9"></script>
+</body>
+
+</html>

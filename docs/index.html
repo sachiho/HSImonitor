@@ -1,0 +1,389 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>HSImonitor 構築・運用ガイド (LVYUAN HSI3000U + ESP32 自律救済)</title>
+  <style>
+    :root {
+      --bg: #0f172a;
+      --surface: #1e293b;
+      --surface-alt: #0b1220;
+      --border: #334155;
+      --text: #e2e8f0;
+      --muted: #94a3b8;
+      --accent: #38bdf8;
+      --green: #34d399;
+      --amber: #fbbf24;
+      --red: #f87171;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Hiragino Kaku Gothic ProN", "Meiryo", sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      line-height: 1.7;
+    }
+    header {
+      background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%);
+      border-bottom: 1px solid var(--border);
+      padding: 2.2rem 1.5rem;
+      text-align: center;
+    }
+    header h1 {
+      margin: 0 0 0.5rem;
+      font-size: 1.85rem;
+      color: #fff;
+    }
+    header p {
+      margin: 0;
+      color: var(--muted);
+      font-size: 0.98rem;
+    }
+    .layout {
+      max-width: 1080px;
+      margin: 0 auto;
+      display: grid;
+      grid-template-columns: 240px 1fr;
+      gap: 2rem;
+      padding: 2rem 1.25rem 4rem;
+    }
+    nav {
+      position: sticky;
+      top: 1.5rem;
+      align-self: start;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 1rem;
+    }
+    nav h2 {
+      margin: 0 0 0.75rem;
+      font-size: 0.85rem;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      color: var(--muted);
+    }
+    nav a {
+      display: block;
+      padding: 0.45rem 0.65rem;
+      color: var(--text);
+      text-decoration: none;
+      border-radius: 8px;
+      font-size: 0.92rem;
+      margin-bottom: 0.25rem;
+    }
+    nav a:hover {
+      background: rgba(56, 189, 248, 0.12);
+      color: var(--accent);
+    }
+    main section {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      padding: 1.75rem;
+      margin-bottom: 1.75rem;
+    }
+    h2.sec-title {
+      margin-top: 0;
+      padding-bottom: 0.6rem;
+      border-bottom: 1px solid var(--border);
+      color: var(--accent);
+      font-size: 1.35rem;
+    }
+    h3 {
+      margin-top: 1.4rem;
+      margin-bottom: 0.5rem;
+      color: #f8fafc;
+      font-size: 1.08rem;
+    }
+    code {
+      background: var(--surface-alt);
+      border: 1px solid var(--border);
+      padding: 0.12rem 0.4rem;
+      border-radius: 5px;
+      font-family: Consolas, "Courier New", monospace;
+      font-size: 0.9em;
+      color: #7dd3fc;
+    }
+    pre {
+      background: var(--surface-alt);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 1rem;
+      overflow-x: auto;
+      font-family: Consolas, "Courier New", monospace;
+      font-size: 0.88rem;
+      line-height: 1.5;
+      color: #cbd5e1;
+    }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin: 1rem 0;
+      font-size: 0.93rem;
+    }
+    th, td {
+      border: 1px solid var(--border);
+      padding: 0.6rem 0.75rem;
+      text-align: left;
+    }
+    th {
+      background: var(--surface-alt);
+      color: var(--accent);
+    }
+    .callout {
+      border-left: 4px solid var(--accent);
+      background: rgba(56, 189, 248, 0.08);
+      padding: 0.85rem 1rem;
+      border-radius: 0 8px 8px 0;
+      margin: 1rem 0;
+      font-size: 0.94rem;
+    }
+    .callout.warn {
+      border-left-color: var(--amber);
+      background: rgba(251, 191, 36, 0.08);
+    }
+    .callout.danger {
+      border-left-color: var(--red);
+      background: rgba(248, 113, 113, 0.08);
+    }
+    .oled-mock {
+      background: #020617;
+      border: 3px solid #475569;
+      border-radius: 10px;
+      width: 280px;
+      padding: 0.8rem 0.9rem;
+      font-family: Consolas, "Courier New", monospace;
+      color: #e0f2fe;
+      margin: 1rem 0;
+      box-shadow: 0 8px 20px rgba(0, 0, 0, 0.4);
+    }
+    .oled-row1 {
+      display: flex;
+      justify-content: space-between;
+      font-size: 0.8rem;
+      border-bottom: 1px solid #38bdf8;
+      padding-bottom: 3px;
+      margin-bottom: 6px;
+    }
+    .oled-row2 {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 6px;
+    }
+    .oled-volt { font-size: 1.5rem; font-weight: bold; }
+    .oled-meta { font-size: 0.78rem; text-align: right; line-height: 1.25; }
+    .oled-line { font-size: 0.82rem; line-height: 1.35; }
+    @media (max-width: 820px) {
+      .layout { grid-template-columns: 1fr; }
+      nav { position: static; }
+    }
+  </style>
+</head>
+<body>
+
+<header>
+  <h1>☀️ HSImonitor 構築・運用マニュアル</h1>
+  <p>LVYUAN HSI3000U インバータ監視 ＆ ESP32 自律バッテリー救済システム</p>
+</header>
+
+<div class="layout">
+  <nav>
+    <h2>目次</h2>
+    <a href="#sec1">1. 全体構成</a>
+    <a href="#sec2">2. ハードウェア作成</a>
+    <a href="#sec3">3. ESP書き込みと単体チェック</a>
+    <a href="#sec4">4. PCサーバーからのアクセス</a>
+    <a href="#sec5">5. WEBでの操作</a>
+  </nav>
+
+  <main>
+    <!-- 1. 全体構成 -->
+    <section id="sec1">
+      <h2 class="sec-title">1. 全体構成</h2>
+      <p>
+        本システムは、LVYUAN <strong>HSI3000U</strong>（SRNE OEM 互換）インバータの RS485 (Modbus RTU) ポートに
+        <strong>ESP32 (Lolin32 OLED)</strong> を接続し、以下の 2 つの役割を同時に実現します。
+      </p>
+      <ul>
+        <li><strong>Wi-Fi ⇔ RS485 完全透過ブリッジ（TCP Port <code>8888</code>）</strong>：PC の Python 監視サーバーから無線でインバータをリアルタイム監視・設定変更。</li>
+        <li><strong>ESP32 自律バッテリー救済コントローラ（HTTP API Port <code>8889</code>）</strong>：PC が停止・再起動中であっても、ESP32 単独でバッテリー電圧低下を検知し、充電優先順位 <code>[06]</code> を <code>OSO</code>（太陽光のみ）から <code>CSO</code>（商用緊急充電）へ自動切替・回復復帰を実行。</li>
+      </ul>
+
+      <pre>
+[HSI3000U インバータ]
+       │  RS485 (9600bps / Modbus RTU / Slave ID=1)
+       ▼
+[ESP32 (Lolin32 OLED) + RS485モジュール]
+  ├── 自律救済エンジン & NVS(Preferences) ── PC不在時も2秒周期で監視・緊急充電切替
+  ├── TCP Port 8888 (完全透過ブリッジ)  ── 通過パケットを受動スニッフィング(衝突ゼロ)
+  └── HTTP Port 8889 (/api/rescue)      ── 救済設定の読み書き・状態同期
+       │  Wi-Fi (LAN)
+       ▼
+[PC 監視サーバー (server.py / FastAPI)]
+  └── HTTP / WebSocket (Port 8000)
+       │
+       ▼
+[ブラウザ / スマートフォン Web UI]
+      </pre>
+
+      <div class="callout">
+        <strong>RS485 バス調停の仕組み：</strong> PC サーバーが接続している間、ESP32 は通過する Modbus 応答を受動スニッフィング（盗聴）して電圧や設定値を取得するため、RS485 バス上で通信が衝突しません。PC が切断されると 2 秒周期の自律ポーリングへ自動で切り替わります。
+      </div>
+    </section>
+
+    <!-- 2. ハードウェア作成 -->
+    <section id="sec2">
+      <h2 class="sec-title">2. ハードウェア作成</h2>
+      <h3>必要な部品</h3>
+      <ul>
+        <li><strong>マイコンボード</strong>：ESP32 Lolin32 OLED（0.96インチ SSD1306 I2C OLED 内蔵）</li>
+        <li><strong>RS485 変換モジュール</strong>：自動送受信切替タイプ（3.3V 対応、TX/RX と A/B 端子のみの 2 線式が推奨）</li>
+        <li><strong>LAN ケーブル（RJ45）</strong>：HSI3000U の RS485 通信ポート接続用</li>
+        <li><strong>電源</strong>：USB 5V 電源（インバータ付近のコンセントまたは DC-DC コンバータ）</li>
+      </ul>
+
+      <h3>ESP32 ⇔ RS485 モジュール結線</h3>
+      <table>
+        <thead>
+          <tr><th>ESP32 (Lolin32 OLED)</th><th>接続先</th><th>備考</th></tr>
+        </thead>
+        <tbody>
+          <tr><td><code>GPIO 25</code> (Serial2 RX)</td><td>RS485 モジュール <code>RO / RXD</code></td><td><code>HSI485conv.ino</code> の <code>RS485_RX</code></td></tr>
+          <tr><td><code>GPIO 26</code> (Serial2 TX)</td><td>RS485 モジュール <code>DI / TXD</code></td><td><code>HSI485conv.ino</code> の <code>RS485_TX</code></td></tr>
+          <tr><td><code>3.3V</code> / <code>GND</code></td><td>RS485 モジュール <code>VCC</code> / <code>GND</code></td><td>3.3V 動作を必ず確認</td></tr>
+          <tr><td><code>GPIO 5</code> / <code>GPIO 4</code></td><td>内蔵 OLED <code>SDA</code> / <code>SCL</code></td><td>基板内部で配線済み（I2C <code>0x3C</code>）</td></tr>
+        </tbody>
+      </table>
+
+      <h3>HSI3000U (RJ45) ⇔ RS485 結線</h3>
+      <p>
+        インバータ本体の通信ポート（RJ45）から <strong>RS485 A(+) / B(-)</strong> を取り出し、RS485 モジュールの <code>A</code>・<code>B</code> に接続します。通信応答がない場合は A と B を入れ替えて確認してください。
+      </p>
+
+      <div class="callout warn">
+        <strong>注意：</strong> USB-RS485 アダプタを使って PC とインバータを直接繋ぐ場合は、ESP32 側の RS485 配線（または電源）を外してください。同一 RS485 バス上に PC と ESP32 が別々にマスターとして繋がると通信が衝突します。
+      </div>
+    </section>
+
+    <!-- 3. ESP書き込みとESP単体での動作チェック -->
+    <section id="sec3">
+      <h2 class="sec-title">3. ESP書き込みとESP単体での動作チェック</h2>
+
+      <h3>Arduino IDE での設定と書き込み</h3>
+      <ol>
+        <li>Arduino IDE で <code>HSI485conv.ino</code> を開きます。</li>
+        <li>ライブラリマネージャから以下をインストールします（HTTP/NVS 関連は ESP32 コア標準付属）：
+          <ul>
+            <li><code>Adafruit GFX Library</code></li>
+            <li><code>Adafruit SSD1306</code></li>
+          </ul>
+        </li>
+        <li>コード先頭付近の Wi-Fi 設定をご自身の環境に合わせて書き換えます：
+          <pre>const char* ssid     = "YOUR_WIFI_SSID";
+const char* password = "YOUR_WIFI_PASSWORD";</pre>
+        </li>
+        <li>ボード設定で <strong>WEMOS LOLIN32</strong>（または <strong>ESP32 Dev Module</strong>）を選択し、USB 接続して書き込みます。</li>
+      </ol>
+
+      <h3>OLED 画面の見方（PC なし単体動作時）</h3>
+      <p>電源投入後、PC サーバーを起動しなくても ESP32 単体でインバータと通信し、以下の 5 行が表示されます。</p>
+
+      <div class="oled-mock">
+        <div class="oled-row1">
+          <span>192.168.1.85</span>
+          <span>*</span>
+        </div>
+        <div class="oled-row2">
+          <div class="oled-volt">25.4V</div>
+          <div class="oled-meta">PC:WAIT<br>-58dBm</div>
+        </div>
+        <div class="oled-line">PWR: INVERTER</div>
+        <div class="oled-line">CHG:OSO  RSC:WAIT</div>
+        <div class="oled-line">23.5-&gt;CSO  24.6-&gt;OSO</div>
+      </div>
+
+      <ul>
+        <li><strong>1行目</strong>：Wi-Fi 接続中は <code>WiFi Connecting...</code>、接続後は IP アドレス（PC 接続時は <code>[PC]</code> 付記）と通信点滅 <code>*</code>。</li>
+        <li><strong>2行目</strong>：現在のバッテリー電圧（大文字）、PC 接続状態（<code>PC:WAIT</code> / <code>PC:LINK</code>）、Wi-Fi 電波強度。</li>
+        <li><strong>3行目</strong>：<code>PWR: INVERTER</code>（インバータ給電） / <code>PWR: BYPASS (AC)</code>（商用パスルー）等の運転状態。</li>
+        <li><strong>4行目</strong>：充電優先順位（<code>OSO</code>/<code>CSO</code> 等）と救済状態（<code>WAIT</code> / <code>ACTIVE!</code> / <code>OFF</code>）。</li>
+        <li><strong>5行目</strong>：救済開始・終了電圧、または切替判定中のカウントダウン（例：<code>RESCUE ->CSO (4/10s)</code>）。</li>
+      </ul>
+
+      <h3>HTTP API による単体動作チェック</h3>
+      <p>PC やスマホのブラウザ、または <code>curl</code> で以下の URL にアクセスし、JSON が返れば ESP32 単体での動作は正常です。</p>
+      <pre>curl http://&lt;ESP32のIPアドレス&gt;:8889/api/rescue</pre>
+      <div class="callout">
+        Wi-Fi に繋がらない環境でも、ESP32 は 5 秒ごとに裏で再接続を試みながら、RS485 監視と自律バッテリー救済を継続します。
+      </div>
+    </section>
+
+    <!-- 4. PCサーバーからのアクセス -->
+    <section id="sec4">
+      <h2 class="sec-title">4. PCサーバーからのアクセス</h2>
+
+      <h3>初回セットアップ（Windows）</h3>
+      <ol>
+        <li>Python 3.10〜3.12 をインストールします。</li>
+        <li><code>setup_requirements.bat</code> を実行（または <code>pip install -r requirements.txt</code>）して依存パッケージをインストールします。</li>
+        <li>必要に応じて <code>server.py</code> 内の接続先 IP（初期値 <code>socket://192.168.1.85:8888</code>）を ESP32 の OLED に表示された IP に書き換えます。</li>
+      </ol>
+
+      <h3>起動と停止</h3>
+      <ul>
+        <li><strong>起動</strong>：<code>run.bat</code>（または <code>python -u server.py</code>）を実行します。起動中は黒いコンソールウィンドウを開いたままにします。</li>
+        <li><strong>停止</strong>：<code>stop.bat</code> を実行します。</li>
+      </ul>
+
+      <h3>Wi-Fi 接続と USB-RS485 直結の自動切替</h3>
+      <p>
+        <code>server.py</code> は接続ポートに応じて救済処理の方式を自動で切り替えます：
+      </p>
+      <ul>
+        <li><code>socket://...</code> 接続時：<strong>ESP32 自律監視モード</strong>（PC は Port <code>8889</code> から状態同期のみ実施）。</li>
+        <li><code>COMx</code>（USB-RS485 直結）時：<strong>PC 監視モード</strong>（自動的に Python 側のローカル救済制御へフォールバック）。</li>
+      </ul>
+    </section>
+
+    <!-- 5. WEBでの操作 -->
+    <section id="sec5">
+      <h2 class="sec-title">5. WEBでの操作</h2>
+      <p>
+        サーバー起動後、PC のブラウザで <code>http://localhost:8000</code> を開きます。同じ Wi-Fi 内のスマートフォンやタブレットからは <code>http://&lt;PCのIPアドレス&gt;:8000</code> で閲覧・操作できます。
+      </p>
+
+      <h3>主な画面と操作</h3>
+      <table>
+        <thead>
+          <tr><th>機能・パネル</th><th>操作できること</th></tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><strong>リアルタイム電力フロー &amp; 推移グラフ</strong></td>
+            <td>太陽光(PV)・バッテリー・商用(Grid)・AC負荷の電力の流れをアニメーション表示し、過去24時間の推移を確認できます。</td>
+          </tr>
+          <tr>
+            <td><strong>夜間バッテリー保護・自動救済充電</strong></td>
+            <td>自動救済の <code>ON/OFF</code>、救済開始電圧（例: <code>23.5V</code>）、救済停止電圧（例: <code>24.6V</code>）を設定して「閾値設定を保存」を押すと、ESP32 側の NVS に即座に書き込まれます。</td>
+          </tr>
+          <tr>
+            <td><strong>充電優先順位の手動切替</strong></td>
+            <td><code>CSO</code>（太陽光優先）・<code>CUB</code>（商用優先）・<code>SNU</code>（同時充電）・<code>OSO</code>（太陽光のみ）を直接切り替えできます。手動で <code>OSO</code> に戻すと ESP32 側の救済状態も自動で待機に同期します。</td>
+          </tr>
+          <tr>
+            <td><strong>バッテリー詳細 / 履歴 / 障害診断</strong></td>
+            <td>LiFePO4 8S 適応型 SOC 推定、1分間隔・日別集計グラフ、全64種のエラーコード事典、CSV ログダウンロードが利用できます。</td>
+          </tr>
+        </tbody>
+      </table>
+    </section>
+  </main>
+</div>
+
+</body>
+</html>
+
