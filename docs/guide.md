@@ -119,7 +119,8 @@ curl http://<ESP32_IP>:8889/api/rescue
 ### Automatic Mode Switching (Wi-Fi vs. Direct USB-RS485)
 
 * **`socket://...` (ESP32 Wi-Fi Bridge)**: PC mirrors the ESP32's autonomous rescue state via Port `8889` and pushes UI config changes to ESP32 NVS.
-* **`COMx` (Direct USB-RS485)**: `auto_rescue.py` automatically falls back to local PC-side rescue control.
+* **`COMx` (Direct USB / USB-RS485 without ESP32)**: Simply connect the inverter to the PC via USB (CH340 or USB-RS485 adapter) and run `pc_server/run.bat`. The server auto-detects the `COM` port and `auto_rescue.py` falls back to local PC-side rescue control.
+  * *Note:* Unplug the ESP32 when using USB-RS485 to avoid bus collisions, and keep the PC awake if you rely on PC-side Auto-Rescue.
 
 ---
 

@@ -82,9 +82,21 @@ HSImonitor/
 
 ## Quick Start
 
+### Option A: ESP32 Wi-Fi Bridge + Autonomous Rescue (Recommended)
+
 1. Open `firmware/HSI485conv/HSI485conv.ino` in Arduino IDE, set your `ssid` and `password`, and flash to **WEMOS LOLIN32**.
 2. On your PC, run `pc_server/setup_requirements.bat` (or `pip install -r pc_server/requirements.txt`).
 3. Update the target IP in `pc_server/server.py` (default: `socket://192.168.1.85:8888`) if needed, then start with `pc_server/run.bat`.
 4. Open `http://localhost:8000` in your browser.
+
+### Option B: Direct USB Connection (Without ESP32)
+
+You can also run the monitor directly via USB (inverter's built-in USB/CH340 port or a USB-RS485 adapter) without building the ESP32 bridge:
+
+1. Connect the inverter directly to your PC via USB (or USB-RS485 adapter).
+2. Run `pc_server/setup_requirements.bat` and then `pc_server/run.bat` — the server automatically detects the physical `COM` port and falls back to PC-side Auto-Rescue mode.
+3. **Important Notes:**
+   * **Do not connect ESP32 at the same time:** Unplug the ESP32 from the inverter's RS485 port when using USB-RS485 to avoid bus collisions.
+   * **PC must stay awake:** In USB direct mode, Auto-Rescue runs on the PC (`auto_rescue.py`), so battery protection pauses if the PC sleeps or shuts down.
 
 Full documentation: [docs/guide.md](docs/guide.md) | [日本語 (docs/guide.ja.md)](docs/guide.ja.md) | [HTML Manual](docs/index.html)

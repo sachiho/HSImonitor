@@ -340,14 +340,17 @@ const char* password = "YOUR_WIFI_PASSWORD";</pre>
         <li><strong>停止</strong>：<code>stop.bat</code> を実行します。</li>
       </ul>
 
-      <h3>Wi-Fi 接続と USB-RS485 直結の自動切替</h3>
+      <h3>Wi-Fi 接続と USB 直結の自動切替</h3>
       <p>
         <code>server.py</code> は接続ポートに応じて救済処理の方式を自動で切り替えます：
       </p>
       <ul>
-        <li><code>socket://...</code> 接続時：<strong>ESP32 自律監視モード</strong>（PC は Port <code>8889</code> から状態同期のみ実施）。</li>
-        <li><code>COMx</code>（USB-RS485 直結）時：<strong>PC 監視モード</strong>（自動的に Python 側のローカル救済制御へフォールバック）。</li>
+        <li><code>socket://...</code> 接続時（ESP32 Wi-Fi）：<strong>ESP32 自律監視モード</strong>（PC は Port <code>8889</code> から状態同期のみ実施）。</li>
+        <li><code>COMx</code> 接続時（ESP32 なし・USB 直結）：インバータの USB（CH340）または USB-RS485 アダプタを PC に直結して <code>pc_server/run.bat</code> を起動するだけで、物理 <code>COM</code> ポートを自動検出し <strong>PC 監視モード</strong>（Python 側のローカル救済制御）へ自動切替します。</li>
       </ul>
+      <div class="callout warn">
+        <strong>USB 直結時の注意：</strong> USB-RS485 使用時は ESP32 をインバータから外してください（バス衝突防止）。また PC スリープ／シャットダウン中は夜間救済が動作しません。
+      </div>
     </section>
 
     <!-- 5. WEBでの操作 -->

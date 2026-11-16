@@ -70,9 +70,21 @@ HSImonitor/
 
 ## クイックスタート
 
+### 方法 A：ESP32 Wi-Fi ブリッジ ＋ 自律救済構成（推奨）
+
 1. `firmware/HSI485conv/HSI485conv.ino` を Arduino IDE で開き、`ssid` / `password` を設定して **WEMOS LOLIN32** へ書き込みます。
 2. PC 側で `pc_server/setup_requirements.bat`（または `pip install -r pc_server/requirements.txt`）を実行します。
 3. 必要に応じて `pc_server/server.py` の接続先 IP（初期値 `socket://192.168.1.85:8888`）を変更し、`pc_server/run.bat` で起動します。
 4. ブラウザで `http://localhost:8000` を開きます。
+
+### 方法 B：USB 直結で使う場合（ESP32 なし）
+
+ESP32 を工作せず、PC とインバータを USB（本体内蔵の CH340 USB ポート、または USB-RS485 アダプタ）で直接つないで使うことも可能です。
+
+1. インバータと PC を USB ケーブル（または USB-RS485 アダプタ）で接続します。
+2. `pc_server/setup_requirements.bat` → `pc_server/run.bat` を実行すると、サーバーが物理 `COM` ポートを自動検出し、自動で PC 監視側の救済モードに切り替わります。
+3. **ご注意：**
+   * **ESP32 との併用不可：** USB-RS485 直結時は、通信衝突を防ぐため ESP32 をインバータの RS485 ポートから外してください。
+   * **PC の稼働が必須：** USB 直結時は PC 側（`auto_rescue.py`）で救済判定を行うため、PC がスリープ・シャットダウンしている間は夜間救済が動作しません（常時保護したい場合は方法 A をおすすめします）。
 
 詳細ガイド：[docs/guide.ja.md](docs/guide.ja.md) | [English (docs/guide.md)](docs/guide.md) | [HTML マニュアル](docs/index.html)
