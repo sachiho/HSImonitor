@@ -242,27 +242,28 @@
       <ul>
         <li><strong>マイコンボード</strong>：ESP32 Lolin32 OLED（0.96インチ SSD1306 I2C OLED 内蔵）</li>
         <li><strong>RS485 変換モジュール</strong>：自動送受信切替タイプ（3.3V 対応、TX/RX と A/B 端子のみの 2 線式が推奨）</li>
-        <li><strong>LAN ケーブル（RJ45）</strong>：HSI3000U の RS485 通信ポート接続用</li>
-        <li><strong>電源</strong>：USB 5V 電源（インバータ付近のコンセントまたは DC-DC コンバータ）</li>
+        <li><strong>LAN ケーブル（RJ45）</strong>：市販の T568B ストレートケーブル（片側をカットして 1, 2, 7, 8 番ピン線を取り出し）</li>
+        <li><strong>電源</strong>：<strong>不要</strong>（インバータ RJ45 1番ピンの <code>+5V</code> 出力を Lolin32 の <code>5V</code> へ直結）</li>
       </ul>
 
-      <h3>ESP32 ⇔ RS485 モジュール結線</h3>
+      <h3>配線図 &amp; ピンアサイン (T568B ケーブル基準)</h3>
+      <p><img src="images/wiring_diagram.svg" alt="HSImonitor Wiring Diagram" style="max-width:100%; border-radius:10px; border:1px solid var(--border);"></p>
       <table>
         <thead>
-          <tr><th>ESP32 (Lolin32 OLED)</th><th>接続先</th><th>備考</th></tr>
+          <tr><th>HSI3000U (RJ45)</th><th>線色 (T568B)</th><th>ESP32 (Lolin32 OLED)</th><th>RS485 モジュール</th><th>備考</th></tr>
         </thead>
         <tbody>
-          <tr><td><code>GPIO 25</code> (Serial2 RX)</td><td>RS485 モジュール <code>RO / RXD</code></td><td><code>HSI485conv.ino</code> の <code>RS485_RX</code></td></tr>
-          <tr><td><code>GPIO 26</code> (Serial2 TX)</td><td>RS485 モジュール <code>DI / TXD</code></td><td><code>HSI485conv.ino</code> の <code>RS485_TX</code></td></tr>
-          <tr><td><code>3.3V</code> / <code>GND</code></td><td>RS485 モジュール <code>VCC</code> / <code>GND</code></td><td>3.3V 動作を必ず確認</td></tr>
-          <tr><td><code>GPIO 5</code> / <code>GPIO 4</code></td><td>内蔵 OLED <code>SDA</code> / <code>SCL</code></td><td>基板内部で配線済み（I2C <code>0x3C</code>）</td></tr>
+          <tr><td><strong>1番ピン</strong> (<code>+5V</code>)</td><td>橙白</td><td><code>5V</code> (<code>VIN</code>)</td><td>—</td><td>インバータから直接 5V 給電</td></tr>
+          <tr><td><strong>2番ピン</strong> (<code>GND</code>)</td><td>橙</td><td><code>GND</code></td><td><code>GND</code></td><td>共通 GND</td></tr>
+          <tr><td>—</td><td>—</td><td><code>3.3V</code></td><td><code>VCC</code></td><td>3.3V 動作を必ず確認</td></tr>
+          <tr><td>—</td><td>—</td><td><code>GPIO 25</code> (Serial2 RX)</td><td><code>RO / RXD</code></td><td><code>RS485_RX</code></td></tr>
+          <tr><td>—</td><td>—</td><td><code>GPIO 26</code> (Serial2 TX)</td><td><code>DI / TXD</code></td><td><code>RS485_TX</code></td></tr>
+          <tr><td><strong>7番ピン</strong> (<code>RS485 A+</code>)</td><td>茶白</td><td>—</td><td><code>A (+)</code></td><td>RS485 Data +</td></tr>
+          <tr><td><strong>8番ピン</strong> (<code>RS485 B-</code>)</td><td>茶</td><td>—</td><td><code>B (-)</code></td><td>RS485 Data -</td></tr>
+          <tr><td>—</td><td>—</td><td><code>GPIO 5</code> / <code>GPIO 4</code></td><td>—</td><td>内蔵 OLED（<code>SDA=5</code>, <code>SCL=4</code>, I2C <code>0x3C</code>）</td></tr>
         </tbody>
       </table>
-
-      <h3>HSI3000U (RJ45) ⇔ RS485 結線</h3>
-      <p>
-        インバータ本体の通信ポート（RJ45）から <strong>RS485 A(+) / B(-)</strong> を取り出し、RS485 モジュールの <code>A</code>・<code>B</code> に接続します。通信応答がない場合は A と B を入れ替えて確認してください。
-      </p>
+      <p style="font-size:0.9rem; color:var(--muted);">※ 市販ストレートケーブルの多くは T568B（1番=橙白、2番=橙）ですが、T568A やクロスケーブルでは線色が異なります。接続前にテスターで +5V と GND の極性を確認してください。</p>
 
       <div class="callout warn">
         <strong>注意：</strong> USB-RS485 アダプタを使って PC とインバータを直接繋ぐ場合は、ESP32 側の RS485 配線（または電源）を外してください。同一 RS485 バス上に PC と ESP32 が別々にマスターとして繋がると通信が衝突します。
@@ -352,6 +353,7 @@ const char* password = "YOUR_WIFI_PASSWORD";</pre>
     <!-- 5. WEBでの操作 -->
     <section id="sec5">
       <h2 class="sec-title">5. WEBでの操作</h2>
+      <p><img src="images/HSImonitor_screen01.png" alt="HSImonitor Web Dashboard" style="max-width:100%; border-radius:10px; border:1px solid var(--border);"></p>
       <p>
         サーバー起動後、PC のブラウザで <code>http://localhost:8000</code> を開きます。同じ Wi-Fi 内のスマートフォンやタブレットからは <code>http://&lt;PCのIPアドレス&gt;:8000</code> で閲覧・操作できます。
       </p>

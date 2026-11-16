@@ -37,21 +37,25 @@ This system connects an **ESP32 (Lolin32 OLED)** to the RS485 (Modbus RTU) port 
 
 * **Microcontroller**: ESP32 Lolin32 OLED (with built-in 0.96" SSD1306 I2C OLED)
 * **RS485 Transceiver**: Auto-direction RS485-to-TTL module (3.3V compatible, TX/RX and A/B terminals only)
-* **Cable**: Standard RJ45 Ethernet cable for the inverter's RS485 port
-* **Power Supply**: 5V USB power adapter
+* **Cable**: Standard T568B RJ45 Ethernet cable (cut one end to expose pins 1, 2, 7, 8)
+* **Power Supply**: *Not needed* — Lolin32 is powered directly from the inverter's RJ45 Pin 1 (`+5V`)
 
-### ESP32 ⇔ RS485 Wiring
+### Wiring Diagram & Pinout
 
-| ESP32 (Lolin32 OLED) | RS485 Module | Notes |
-| :--- | :--- | :--- |
-| `GPIO 25` (Serial2 RX) | `RO / RXD` | `RS485_RX` in `HSI485conv.ino` |
-| `GPIO 26` (Serial2 TX) | `DI / TXD` | `RS485_TX` in `HSI485conv.ino` |
-| `3.3V` / `GND` | `VCC` / `GND` | Ensure 3.3V logic compatibility |
-| `GPIO 5` / `GPIO 4` | Built-in OLED `SDA` / `SCL` | Pre-wired on board (I2C `0x3C`) |
+![Hardware Wiring Diagram](images/wiring_diagram.svg)
 
-### HSI3000U (RJ45) ⇔ RS485 Wiring
+| HSI3000U (RJ45) | T568B Wire Color | ESP32 (Lolin32 OLED) | RS485 Module | Notes |
+| :--- | :--- | :--- | :--- | :--- |
+| **Pin 1** (`+5V Out`) | White / Orange | `5V` (`VIN`) | — | Direct 5V power from inverter |
+| **Pin 2** (`GND`) | Orange | `GND` | `GND` | Common ground |
+| — | — | `3.3V` | `VCC` | Ensure 3.3V logic compatibility |
+| — | — | `GPIO 25` (`Serial2 RX`) | `RXD / RO` | `RS485_RX` in `HSI485conv.ino` |
+| — | — | `GPIO 26` (`Serial2 TX`) | `TXD / DI` | `RS485_TX` in `HSI485conv.ino` |
+| **Pin 7** (`RS485 A+`) | White / Brown | — | `A (+)` | RS485 Data + |
+| **Pin 8** (`RS485 B-`) | Brown | — | `B (-)` | RS485 Data - |
+| — | — | `GPIO 5` / `GPIO 4` | — | Built-in OLED (`SDA=5`, `SCL=4`, I2C `0x3C`) |
 
-Connect **RS485 A(+)** and **B(-)** from the inverter's RJ45 communication port to terminals `A` and `B` on the RS485 module. If there is no response, swap `A` and `B`.
+> **Caution:** Always verify `+5V` (Pin 1) and `GND` (Pin 2) polarity with a multimeter before connecting, as T568A or crossover Ethernet cables use different wire colors on Pins 1–2.
 
 > **Warning:** If you connect the PC directly to the inverter using a USB-RS485 adapter, disconnect the ESP32 from the RS485 bus (or power it off) so two masters do not collide on the same bus.
 
@@ -120,6 +124,8 @@ curl http://<ESP32_IP>:8889/api/rescue
 ---
 
 ## 5. Web UI Operation
+
+![HSImonitor Web Dashboard](images/HSImonitor_screen01.png)
 
 Open `http://localhost:8000` on the host PC, or `http://<PC_IP>:8000` from a smartphone/tablet on the same LAN.
 
